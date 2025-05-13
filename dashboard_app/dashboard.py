@@ -1,20 +1,37 @@
 import os
 import pandas as pd
 import streamlit as st
-import streamlit as st
 
-# ——— 1) Metricas em destaque ———
-total_leads   = len(df)
-corp_leads    = int(df['is_corporate'].sum())
-valid_phones  = int(df['phone_valid'].sum())
-avg_score     = df['score'].mean()
+# 1) Definição do path absoluto para o CSV
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(BASE_DIR, "data", "prospects.csv")
 
+# 2) Função de carregamento e tratamento dos dados
+@st.cache_data
+def load_data():
+    df = pd.read_csv(csv_path)
+    # ... seu processamento (phone_raw, ddd, domain, score etc.)
+    return df
+
+# 3) Aqui sim carregamos o DataFrame
+df = load_data()
+
+# 4) Agora podemos calcular métricas — df já existe!
+total_leads  = len(df)
+corp_leads   = int(df['is_corporate'].sum())
+valid_phones = int(df['phone_valid'].sum())
+avg_score    = df['score'].mean()
+
+# 5) Exibição das métricas
 st.title("📊 Dashboard de Prospects")
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total de Leads",      total_leads)
 col2.metric("Emails Corporativos", corp_leads)
 col3.metric("Telefones Válidos",   valid_phones)
 col4.metric("Score Médio",         f"{avg_score:.2f}")
+
+# ... resto do layout (tabs, gráficos, tabelas etc.)
+
 
 st.markdown("---")
 
