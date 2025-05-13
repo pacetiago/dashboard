@@ -2,27 +2,22 @@ import os
 import pandas as pd
 import streamlit as st
 
-
-# garante que ele sempre vai usar o data/ dentro de dashboard_app,
-# não importa de onde o app seja iniciado
+# 1) Resolve dinamicamente onde está este arquivo:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(BASE_DIR, 'data', 'prospects.csv')
+
+# 2) Monta o caminho exato para o CSV dentro de dashboard_app/data/
+csv_path = os.path.join(BASE_DIR, "data", "prospects.csv")
 
 @st.cache_data
 def load_data():
+    # 3) Lê o CSV usando o caminho absoluto
     df = pd.read_csv(csv_path)
-    # resto do processamento...
-    return df
-
+    # 4) Processa exatamente as mesmas colunas
     df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
     df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
     def extract_ddd(x):
-        if not x or len(x) < 10:
-            return None
-        if len(x) >= 12 and x.startswith('55'):
-            return x[2:4]
-        else:
-            return x[0:2]
+        if not x or len(x) < 10: return None
+        return x[2:4] if x.startswith('55') else x[0:2]
     df['ddd'] = df['phone_digits'].apply(extract_ddd)
     df['domain'] = df['Email'].str.lower().str.split('@').str[-1]
     free = ['gmail.com','hotmail.com','outlook.com','yahoo.com','yahoo.com.br','uol.com.br','globo.com','bol.com.br']
@@ -31,7 +26,10 @@ def load_data():
     df['score'] = df['is_corporate'].astype(int) + df['phone_valid'].astype(int)
     return df
 
+# 5) Carrega o DataFrame antes de qualquer uso
 df = load_data()
+st.write("Colunas disponíveis:", df.columns.tolist())
+
 
 st.title("Dashboard de Prospects")
 
