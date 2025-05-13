@@ -1,12 +1,17 @@
-
+import os
 import pandas as pd
-import streamlit as st
+
+# garante que ele sempre vai usar o data/ dentro de dashboard_app,
+# não importa de onde o app seja iniciado
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(BASE_DIR, 'data', 'prospects.csv')
 
 @st.cache_data
 def load_data():
-    # Lê o CSV dos prospects
-df = pd.read_csv('dashboard_app/data/prospects.csv')
-    # Processamento
+    df = pd.read_csv(csv_path)
+    # resto do processamento...
+    return df
+
     df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
     df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
     def extract_ddd(x):
