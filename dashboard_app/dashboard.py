@@ -1,5 +1,7 @@
 import os
 import pandas as pd
+import streamlit as st
+
 
 # garante que ele sempre vai usar o data/ dentro de dashboard_app,
 # não importa de onde o app seja iniciado
