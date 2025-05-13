@@ -1,6 +1,59 @@
 import os
 import pandas as pd
 import streamlit as st
+import streamlit as st
+
+# ——— 1) Metricas em destaque ———
+total_leads   = len(df)
+corp_leads    = int(df['is_corporate'].sum())
+valid_phones  = int(df['phone_valid'].sum())
+avg_score     = df['score'].mean()
+
+st.title("📊 Dashboard de Prospects")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total de Leads",      total_leads)
+col2.metric("Emails Corporativos", corp_leads)
+col3.metric("Telefones Válidos",   valid_phones)
+col4.metric("Score Médio",         f"{avg_score:.2f}")
+
+st.markdown("---")
+
+# ——— 2) Abas para separar visões ———
+tab1, tab2 = st.tabs(["Visão Geral", "Detalhes de Cliente"])
+
+with tab1:
+    st.subheader("Distribuição de Score")
+    st.bar_chart(df['score'].value_counts().sort_index())
+
+    st.subheader("Proporção de Domínios")
+    st.pie_chart(df['is_corporate'].value_counts())
+
+with tab2:
+    st.subheader("Filtros")
+    # mantêm seus filtros atuais aqui…
+    chosen_ddd  = st.selectbox("DDD", ['Todos'] + sorted(df['ddd'].dropna().astype(str).unique()))
+    chosen_type = st.selectbox("Tipo de Email", ['Todos','Corporativo','Gratuito'])
+
+    # filtra o DF…
+    filtered = df.copy()
+    if chosen_ddd  != 'Todos': filtered = filtered[filtered['ddd']==chosen_ddd]
+    if chosen_type != 'Todos': filtered = filtered[filtered['is_corporate']==(chosen_type=="Corporativo")]
+
+    st.subheader("Selecione um Cliente")
+    client_list = filtered['Empresa'].dropna().unique().tolist()
+    cliente = st.selectbox("Empresa", client_list)
+
+    # detalhes num expander
+    with st.expander("Ver detalhes completos"):
+        info = df[df['Empresa']==cliente].iloc[0]
+        st.write(info[['Empresa','Nome','Email','phone_raw','ddd','domain','score']])
+
+    st.subheader("Leads Filtrados")
+    st.dataframe(filtered[['Empresa','Nome','Email','phone_raw','ddd','domain','score']])
+
+# ——— 3) Footer limpo — sem logs, apenas rodapé opcional ———
+st.markdown("---")
+st.caption("Dashboard gerado com Streamlit • atualizado dinamicamente")
 
 # 1) Resolve dinamicamente onde está este arquivo:
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
