@@ -5,7 +5,7 @@ import streamlit as st
 @st.cache_data
 def load_data():
     # Lê o CSV dos prospects
-    df = pd.read_csv('data/prospects.csv')
+df = pd.read_csv('dashboard_app/data/prospects.csv')
     # Processamento
     df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
     df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
