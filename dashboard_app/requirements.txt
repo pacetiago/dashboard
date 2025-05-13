@@ -1,0 +1,6 @@
+streamlit
+pandas
+openpyxl
+
+# Optional for additional dashboards:
+matplotlib
