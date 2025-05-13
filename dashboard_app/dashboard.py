@@ -2,40 +2,84 @@ import os
 import pandas as pd
 import streamlit as st
 
-# 1) Definição do path absoluto para o CSV
+# ——————— 1) Caminho absoluto para o CSV ———————
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(BASE_DIR, "data", "prospects.csv")
+CSV_PATH = os.path.join(BASE_DIR, "data", "prospects.csv")
 
-# 2) Função de carregamento e tratamento dos dados
+# ——————— 2) Função de carregamento + tratamento ———————
 @st.cache_data
 def load_data():
-    df = pd.read_csv(csv_path)
-    # ... seu processamento (phone_raw, ddd, domain, score etc.)
+    # 1. Lê o CSV
+    df = pd.read_csv(CSV_PATH)
+
+    # 2. Renomeia colunas para nomes sem acento/hífen
+    df = df.rename(columns={
+        'E-mail':      'Email',
+        'Razão social': 'Empresa',
+        'Telefone':    'Telefone',
+        'Celular':     'Celular',
+        'Nome':        'Nome'
+    })
+
+    # 3. phone_raw: usa Celular ou Telefone
+    df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
+
+    # 4. phone_digits: só dígitos
+    df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
+
+    # 5. ddd: extrai DDD (com ou sem '55' na frente)
+    def extract_ddd(x):
+        if not x or len(x) < 10:
+            return None
+        return x[2:4] if x.startswith('55') else x[0:2]
+    df['ddd'] = df['phone_digits'].apply(extract_ddd)
+
+    # 6. domain: parte após '@'
+    df['domain'] = df['Email'].str.lower().str.split('@').str[-1]
+
+    # 7. is_corporate: domínio próprio vs grátis
+    FREE = [
+        'gmail.com','hotmail.com','outlook.com',
+        'yahoo.com','yahoo.com.br','uol.com.br',
+        'globo.com','bol.com.br'
+    ]
+    df['is_corporate'] = ~df['domain'].isin(FREE)
+
+    # 8. phone_valid: ao menos 10 dígitos
+    df['phone_valid'] = df['phone_digits'].str.len() >= 10
+
+    # 9. score: soma simples de corporate + valid_phone
+    df['score'] = df[['is_corporate','phone_valid']].sum(axis=1)
+
     return df
 
-# 3) Aqui sim carregamos o DataFrame
+# ——————— 3) Carrega dados ———————
 df = load_data()
 
-# 4) Agora podemos calcular métricas — df já existe!
+# DEBUG (opcional): mostra colunas pra garantir
+# st.write("Colunas disponíveis:", df.columns.tolist())
+
+# ——————— 4) Cálculo de métricas ———————
 total_leads  = len(df)
 corp_leads   = int(df['is_corporate'].sum())
 valid_phones = int(df['phone_valid'].sum())
 avg_score    = df['score'].mean()
 
-# 5) Exibição das métricas
+# ——————— 5) Layout principal ———————
+st.set_page_config(layout="wide", page_title="Dashboard de Prospects")
+
 st.title("📊 Dashboard de Prospects")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total de Leads",      total_leads)
-col2.metric("Emails Corporativos", corp_leads)
-col3.metric("Telefones Válidos",   valid_phones)
-col4.metric("Score Médio",         f"{avg_score:.2f}")
 
-# ... resto do layout (tabs, gráficos, tabelas etc.)
-
+# ——— Métricas em destaque ———
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Total de Leads",       total_leads)
+c2.metric("Emails Corporativos",  corp_leads)
+c3.metric("Telefones Válidos",    valid_phones)
+c4.metric("Score Médio",          f"{avg_score:.2f}")
 
 st.markdown("---")
 
-# ——— 2) Abas para separar visões ———
+# ——— Abas: Visão Geral vs Detalhes ———
 tab1, tab2 = st.tabs(["Visão Geral", "Detalhes de Cliente"])
 
 with tab1:
@@ -46,95 +90,37 @@ with tab1:
     st.pie_chart(df['is_corporate'].value_counts())
 
 with tab2:
-    st.subheader("Filtros")
-    # mantêm seus filtros atuais aqui…
+    st.subheader("Filtros de Segmentação")
     chosen_ddd  = st.selectbox("DDD", ['Todos'] + sorted(df['ddd'].dropna().astype(str).unique()))
-    chosen_type = st.selectbox("Tipo de Email", ['Todos','Corporativo','Gratuito'])
+    chosen_type = st.selectbox("Tipo de Email", ['Todos', 'Corporativo', 'Gratuito'])
 
-    # filtra o DF…
+    # Aplica filtros
     filtered = df.copy()
-    if chosen_ddd  != 'Todos': filtered = filtered[filtered['ddd']==chosen_ddd]
-    if chosen_type != 'Todos': filtered = filtered[filtered['is_corporate']==(chosen_type=="Corporativo")]
+    if chosen_ddd  != 'Todos':
+        filtered = filtered[filtered['ddd'] == chosen_ddd]
+    if chosen_type != 'Todos':
+        filtered = filtered[filtered['is_corporate'] == (chosen_type == "Corporativo")]
 
     st.subheader("Selecione um Cliente")
     client_list = filtered['Empresa'].dropna().unique().tolist()
-    cliente = st.selectbox("Empresa", client_list)
+    if client_list:
+        cliente = st.selectbox("Empresa", client_list)
 
-    # detalhes num expander
-    with st.expander("Ver detalhes completos"):
-        info = df[df['Empresa']==cliente].iloc[0]
-        st.write(info[['Empresa','Nome','Email','phone_raw','ddd','domain','score']])
+        # Expander com detalhes
+        with st.expander("Ver detalhes completos"):
+            info = df[df['Empresa'] == cliente].iloc[0]
+            st.write({
+                'Empresa':   info['Empresa'],
+                'Nome':      info['Nome'],
+                'Email':     info['Email'],
+                'Telefone':  info['phone_raw'],
+                'DDD':       info['ddd'],
+                'Domínio':   info['domain'],
+                'Score':     int(info['score'])
+            })
 
     st.subheader("Leads Filtrados")
     st.dataframe(filtered[['Empresa','Nome','Email','phone_raw','ddd','domain','score']])
 
-# ——— 3) Footer limpo — sem logs, apenas rodapé opcional ———
 st.markdown("---")
-st.caption("Dashboard gerado com Streamlit • atualizado dinamicamente")
-
-# 1) Resolve dinamicamente onde está este arquivo:
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 2) Monta o caminho exato para o CSV dentro de dashboard_app/data/
-csv_path = os.path.join(BASE_DIR, "data", "prospects.csv")
-
-@st.cache_data
-def load_data():
-    # 3) Lê o CSV usando o caminho absoluto
-    df = pd.read_csv(csv_path)
-    # 4) Processa exatamente as mesmas colunas
-    df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
-    df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
-    def extract_ddd(x):
-        if not x or len(x) < 10: return None
-        return x[2:4] if x.startswith('55') else x[0:2]
-    df['ddd'] = df['phone_digits'].apply(extract_ddd)
-    df['domain'] = df['Email'].str.lower().str.split('@').str[-1]
-    free = ['gmail.com','hotmail.com','outlook.com','yahoo.com','yahoo.com.br','uol.com.br','globo.com','bol.com.br']
-    df['is_corporate'] = ~df['domain'].isin(free)
-    df['phone_valid'] = df['phone_digits'].apply(lambda x: len(x) >= 10)
-    df['score'] = df['is_corporate'].astype(int) + df['phone_valid'].astype(int)
-    return df
-
-# 5) Carrega o DataFrame antes de qualquer uso
-df = load_data()
-st.write("Colunas disponíveis:", df.columns.tolist())
-
-
-st.title("Dashboard de Prospects")
-
-# Filtros
-st.sidebar.header("Filtros")
-ddds = ['Todos'] + sorted(df['ddd'].dropna().astype(str).unique().tolist())
-chosen_ddd = st.sidebar.selectbox("DDD", ddds)
-types = ['Todos', 'Corporativo', 'Gratuito']
-chosen_type = st.sidebar.selectbox("Tipo de Email", types)
-
-filtered = df.copy()
-if chosen_ddd != 'Todos':
-    filtered = filtered[filtered['ddd'] == chosen_ddd]
-if chosen_type != 'Todos':
-    filtered = filtered[filtered['is_corporate'] == (chosen_type == 'Corporativo')]
-
-# Seleção de cliente
-clients = filtered['Empresa'].dropna().unique().tolist()
-if clients:
-    client = st.selectbox("Selecione o Cliente", clients)
-    info = df[df['Empresa'] == client].iloc[0]
-    st.subheader("Detalhes do Cliente")
-    st.write({
-        'Empresa': info['Empresa'],
-        'Nome': info['Nome'],
-        'Email': info['Email'],
-        'Telefone': info['phone_raw'],
-        'DDD': info['ddd'],
-        'Domínio': info['domain'],
-        'Score': int(info['score'])
-    })
-
-# Visão Geral do Filtro
-st.subheader("Visão de Leads Filtrados")
-st.dataframe(filtered[['Empresa','Nome','Email','phone_raw','ddd','domain','score']].reset_index(drop=True))
-
-st.subheader("Distribuição de Score")
-st.bar_chart(filtered['score'].value_counts().sort_index())
+st.caption("Gerado com Streamlit • Atualizado dinamicamente")
