@@ -4,7 +4,9 @@ import streamlit as st
 
 @st.cache_data
 def load_data():
-    df = pd.read_excel('/mnt/data/Dados Prospect.xlsx')
+    # Lê o CSV dos prospects
+    df = pd.read_csv('data/prospects.csv')
+    # Processamento
     df['phone_raw'] = df['Celular'].fillna(df['Telefone']).astype(str)
     df['phone_digits'] = df['phone_raw'].str.replace(r'\D+', '', regex=True)
     def extract_ddd(x):
@@ -23,11 +25,12 @@ def load_data():
     return df
 
 df = load_data()
+
 st.title("Dashboard de Prospects")
 
 # Filtros
 st.sidebar.header("Filtros")
-ddds = ['Todos'] + sorted(df['ddd'].dropna().unique().tolist())
+ddds = ['Todos'] + sorted(df['ddd'].dropna().astype(str).unique().tolist())
 chosen_ddd = st.sidebar.selectbox("DDD", ddds)
 types = ['Todos', 'Corporativo', 'Gratuito']
 chosen_type = st.sidebar.selectbox("Tipo de Email", types)
